@@ -2,5 +2,14 @@ name = "p2pbot"
 main = "index.js"
 compatibility_date = "2026-03-09"
 
+
+kv_namespaces = [
+	{ binding = "KV", id = "4757dcacc8414c61a9081b6f0c6a680d" }
+]
+
+d1_databases = [
+	{ binding = "DB", database_id = "173a76af-eac5-4b04-8f27-14403782ab8a", database_name = "p2pbot" }
+]
+
 [observability]
 enabled = true
