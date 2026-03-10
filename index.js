@@ -4,6 +4,7 @@ import { handleRequestBotCallback } from "./handlers/request_bot.js";
 import { handleBuyUsdtCallback } from "./handlers/buy_usdt.js";
 import { handleSellUsdtCallback } from "./handlers/sell_usdt.js";
 import { handleSupportCallback } from "./handlers/support.js";
+import { handleSendMessageCallback } from "./handlers/send_message.js";
 
 export default {
 	async fetch(request, env) {
@@ -71,44 +72,114 @@ export default {
 			);
 		}
 
-			if (callbackQuery?.data === "continue") {
-				await handleContinueCallback({
-					token: env.TELEGRAM_BOT_TOKEN,
-					callbackQuery,
-				});
-			}
+		// Handle text messages with FSM state checking
+		if (chatId && text && text !== "/start") {
+			const userId = message?.from?.id;
+			
+			if (userId && env.KV && env.DB) {
+				try {
+					// Get user FSM state from KV
+					const fsmState = await env.KV.get(`fsm:${userId}`);
 
-			if (callbackQuery?.data === "buy_usdt") {
-				await handleBuyUsdtCallback({
-					token: env.TELEGRAM_BOT_TOKEN,
-					callbackQuery,
-				});
-			}
+					if (fsmState === "waiting_contact") {
+						// Get user data from DB
+						const user = await env.DB.prepare(`
+							SELECT username, first_name FROM users WHERE user_id = ?
+						`).bind(userId).first();
 
-			if (callbackQuery?.data === "sell_usdt") {
-				await handleSellUsdtCallback({
-					token: env.TELEGRAM_BOT_TOKEN,
-					callbackQuery,
-				});
-			}
+						// Create order record
+						await env.DB.prepare(`
+							INSERT INTO orders (user_id, order_type, status, created_at, updated_at)
+							VALUES (?, 'bot', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+						`).bind(userId).run();
 
-			if (callbackQuery?.data === "support") {
-				await handleSupportCallback({
-					token: env.TELEGRAM_BOT_TOKEN,
-					callbackQuery,
-				});
-			}
+						// Send message to admin channel
+						const userDisplay = user?.username ? `@${user.username}` : user?.first_name || `User ${userId}`;
+						const adminMessage = `Пользователь ${userId} ${userDisplay} оставил заявку на бота\n\nВремя контакта: ${text}`;
 
-			return new Response("OK", { status: 200 });
-		} catch (error) {
-			console.error("Webhook processing error:", error);
-			return new Response("Webhook error", { status: 500 });
+					const adminResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+						method: "POST",
+						headers: { "content-type": "application/json" },
+						body: JSON.stringify({
+							chat_id: "-1003815117903",
+							text: adminMessage,
+						}),
+					});
+
+					if (!adminResponse.ok) {
+						const errorText = await adminResponse.text();
+						console.error("Failed to send to admin group:", errorText);
+					}
+
+					// Clear FSM state from KV
+					await env.KV.delete(`fsm:${userId}`);
+
+					// Send confirmation to user
+					await sendTelegramMessage(
+						env.TELEGRAM_BOT_TOKEN,
+						chatId,
+						"✅ Спасибо! Мы получили вашу заявку. Свяжемся с вами в удобное время.",
+					);
+				}
+			} catch (dbError) {
+				console.error("Database error handling contact message:", dbError);
+			}
 		}
-	},
+	}
+
+	if (callbackQuery?.data === "request_bot") {
+		await handleRequestBotCallback({
+			token: env.TELEGRAM_BOT_TOKEN,
+			callbackQuery,
+		});
+	}
+
+	if (callbackQuery?.data === "send_message") {
+		await handleSendMessageCallback({
+			token: env.TELEGRAM_BOT_TOKEN,
+			callbackQuery,
+			kv: env.KV,
+		});
+	}
+
+	if (callbackQuery?.data === "continue") {
+		await handleContinueCallback({
+			token: env.TELEGRAM_BOT_TOKEN,
+			callbackQuery,
+		});
+	}
+
+	if (callbackQuery?.data === "buy_usdt") {
+		await handleBuyUsdtCallback({
+			token: env.TELEGRAM_BOT_TOKEN,
+			callbackQuery,
+		});
+	}
+
+	if (callbackQuery?.data === "sell_usdt") {
+		await handleSellUsdtCallback({
+			token: env.TELEGRAM_BOT_TOKEN,
+			callbackQuery,
+		});
+	}
+
+	if (callbackQuery?.data === "support") {
+		await handleSupportCallback({
+			token: env.TELEGRAM_BOT_TOKEN,
+			callbackQuery,
+		});
+	}
+
+	return new Response("OK", { status: 200 });
+} catch (error) {
+	console.error("Webhook processing error:", error);
+	return new Response("Webhook error", { status: 500 });
+}
+},
 };
 
 function getStartMessageHtml() {
-    return [
+return [
         '👋 Добро пожаловать в официальный P2P-бот команды <b>«НЕ ТОРМОЗИ С BTC»</b>!',
         "",
         "Здесь вы можете <b>быстро, безопасно, дешевле и полностью официально купить USDT</b> через проверенный канал.",
