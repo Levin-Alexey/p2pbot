@@ -31,6 +31,12 @@ npx wrangler dev
 npx wrangler deploy
 ```
 
+## 5.1) Daily reminder cron
+
+The worker has a Cron Trigger configured for `30 5 * * *`, which is `08:30 MSK` every day.
+
+Daily topic reminders are configured in `reminders/daily_topic_reminders.js`.
+
 After deploy, copy Worker URL, for example:
 `https://p2pbot.<your-subdomain>.workers.dev`
 

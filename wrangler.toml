@@ -2,6 +2,9 @@ name = "p2pbot"
 main = "index.js"
 compatibility_date = "2026-03-09"
 
+[triggers]
+crons = ["30 5 * * *"]
+
 
 kv_namespaces = [
 	{ binding = "KV", id = "4757dcacc8414c61a9081b6f0c6a680d" }
