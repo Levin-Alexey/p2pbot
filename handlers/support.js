@@ -25,7 +25,8 @@ export async function handleSupportCallback({ token, callbackQuery, kv }) {
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				chat_id: chatId,
-				text: "📝 Опишите вашу проблему или вопрос, и мы поможем вам решить её как можно скорее.",
+				text: "Напишите ваш вопрос или сообщение ниже.\nМы стараемся отвечать в течение <b>1-2 рабочих дней.</b>\n\n📎 Вы можете прикрепить скриншот - это поможет быстрее разобраться в ситуации.",
+				parse_mode: "HTML",
 			}),
 		});
 

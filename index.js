@@ -1,6 +1,6 @@
 const TELEGRAM_API = "https://api.telegram.org/bot";
 const ALLOWED_CHAT_ID = -1003815117903; // Админ-группа где обновляются ссылки
-const ALLOWED_THREAD_ID = 1; // Топик для обновления ссылок
+const ALLOWED_THREAD_ID = 4; // Топик для обновления ссылок
 
 import { handleContinueCallback } from "./handlers/continue.js";
 import { handleRequestBotCallback } from "./handlers/request_bot.js";
@@ -43,30 +43,48 @@ export default {
 				return new Response("Invalid JSON", { status: 400 });
 			}
 
-			const message = update?.message;
+			const message = update?.message ?? update?.channel_post ?? update?.edited_message ?? update?.edited_channel_post;
 			const chatId = message?.chat?.id;
-			const text = message?.text;
+			const threadId = message?.message_thread_id;
+			const text = typeof message?.text === "string" ? message.text.trim() : null;
 			const callbackQuery = update?.callback_query;
 
 			// ============================================
 			// ОБРАБОТКА ОБНОВЛЕНИЯ ССЫЛОК В ТОПИКЕ
 			// ============================================
-			if (message && message.text && chatId === ALLOWED_CHAT_ID && message.message_thread_id === ALLOWED_THREAD_ID) {
+			if (message && text && chatId === ALLOWED_CHAT_ID) {
 				try {
 					let newLink = null;
 					let targetColumn = null;
 
 					// Ищем ключевые слова и извлекаем ссылку
 					if (text.startsWith("BUY_LINK=")) {
-						newLink = text.replace("BUY_LINK=", "").trim();
+						newLink = text.slice("BUY_LINK=".length).trim();
 						targetColumn = "buy_link";
 					} else if (text.startsWith("SELL_LINK=")) {
-						newLink = text.replace("SELL_LINK=", "").trim();
+						newLink = text.slice("SELL_LINK=".length).trim();
 						targetColumn = "sell_link";
 					}
 
 					// Если найдена ссылка, обновляем базу
 					if (newLink && targetColumn && env.DB) {
+						if (threadId !== ALLOWED_THREAD_ID) {
+							console.log(`Ignored link update command from wrong topic: ${threadId}`);
+							return new Response("OK", { status: 200 });
+						}
+
+						try {
+							new URL(newLink);
+						} catch {
+							await sendTelegramMessage(
+								env.TELEGRAM_BOT_TOKEN,
+								chatId,
+								"❌ Неверный формат ссылки. Пример: BUY_LINK=https://example.com",
+								{ message_thread_id: ALLOWED_THREAD_ID }
+							);
+							return new Response("OK", { status: 200 });
+						}
+
 						const query = `UPDATE bot_settings SET ${targetColumn} = ? WHERE id = 1`;
 						await env.DB.prepare(query).bind(newLink).run();
 
@@ -118,8 +136,8 @@ export default {
 				});
 			}
 
-			// Handle text messages with FSM state checking.
-			if (chatId && text && text !== "/start") {
+			// Handle text and media messages with FSM state checking.
+			if (chatId && message && (text ? text !== "/start" : (message.photo || message.document))) {
 				const userId = message?.from?.id;
 
 				if (userId && env.KV && env.DB) {
@@ -383,6 +401,7 @@ export default {
 							const orderId = orderResult.meta?.last_row_id || "?";
 							const userDisplay = user?.username ? `@${user.username}` : user?.first_name || `User ${userId}`;
 							const feedbackTime = new Date().toISOString();
+							const supportText = text || message?.caption || "(медиафайл без подписи)";
 
 							const adminMessage = [
 								"🆘 <b>Запрос в поддержку</b>",
@@ -392,7 +411,7 @@ export default {
 								`ID пользователя: ${userId}`,
 								`Время: ${feedbackTime}`,
 								"",
-								`Сообщение: ${text}`,
+								`Сообщение: ${supportText}`,
 							].join("\n");
 
 							const adminResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
@@ -410,13 +429,31 @@ export default {
 								console.error("Failed to send support message to admin group:", errorText);
 							}
 
+							// Forward media file (photo or document) to admin group if present
+							if (message.photo || message.document) {
+								const forwardResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/forwardMessage`, {
+									method: "POST",
+									headers: { "content-type": "application/json" },
+									body: JSON.stringify({
+										chat_id: "-1003815117903",
+										from_chat_id: chatId,
+										message_id: message.message_id,
+									}),
+								});
+								if (!forwardResponse.ok) {
+									const errorText = await forwardResponse.text();
+									console.error("Failed to forward media to admin group:", errorText);
+								}
+							}
+
 							await env.KV.delete(`fsm:${userId}`);
 
 							await sendTelegramMessage(
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
-								"✅ Ваше сообщение в поддержку отправлено. Мы рассмотрим его в ближайшее время и ответим вам.",
+								"✅ Ваше сообщение отправлено команде поддержки.\n\nМы ответим вам <b>прямо в этом чате</b>, как только обработаем запрос.\n\nСпасибо, что пользуетесь сервисом <b>«НЕ ТОРМОЗИ С BTC»!</b> 🙏",
 								{
+									parse_mode: "HTML",
 									reply_markup: {
 										inline_keyboard: [
 											[{ text: "Главное меню", callback_data: "continue" }],
