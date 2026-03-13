@@ -29,8 +29,8 @@ export async function handleContinueCallback({ token, callbackQuery }) {
 			text: "Выберите действие:",
 			reply_markup: {
 				inline_keyboard: [
-					[{ text: "🔹ПОКУПКА USDT", callback_data: "buy_usdt" }],
-					[{ text: "🔹ПРОДАЖА USDT", callback_data: "sell_usdt" }],
+					[{ text: "💵 ПОКУПКА USDT", callback_data: "buy_usdt" }],
+					[{ text: "💰 ПРОДАЖА USDT", callback_data: "sell_usdt" }],
 					[{ text: "🏢 Заявка на обмен для юридических лиц (официально)", callback_data: "large_amount_request" }],
 					[{ text: "📨 Оставить заявку на крупную сумму", callback_data: "legal_exchange_request" }],
 					[{ text: "📞 Связаться с поддержкой", callback_data: "support" }],

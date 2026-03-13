@@ -169,6 +169,8 @@ export default {
 
 						if (fsmState === "waiting_feedback_answer") {
 							const activeFeedbackId = await env.KV.get(`feedback_active:${userId}`);
+							const hasMediaAttachment = Boolean(message.photo || message.document);
+							const feedbackText = text || message?.caption || (hasMediaAttachment ? "[медиа без текста]" : "");
 							let feedbackRow = null;
 
 							if (activeFeedbackId) {
@@ -181,7 +183,7 @@ export default {
 									.prepare(
 										"UPDATE order_feedbacks SET feedback_text = ?, status = 'completed' WHERE id = ? AND user_id = ?"
 									)
-									.bind(text, activeFeedbackId, userId)
+									.bind(feedbackText, activeFeedbackId, userId)
 									.run();
 							} else {
 								const latestSentFeedback = await env.DB
@@ -198,7 +200,7 @@ export default {
 										.prepare(
 											"UPDATE order_feedbacks SET feedback_text = ?, status = 'completed' WHERE id = ? AND user_id = ?"
 										)
-										.bind(text, latestSentFeedback.id, userId)
+										.bind(feedbackText, latestSentFeedback.id, userId)
 										.run();
 								}
 							}
@@ -216,18 +218,19 @@ export default {
 							const adminMessage = [
 								`Подтверждение сделки ${orderIdText}`,
 								"",
-								`Текст сообщения: ${text}`,
+								`Текст сообщения: ${feedbackText || "не указан"}`,
+								hasMediaAttachment ? `Вложение: ${message.photo ? "фото" : "документ"}` : null,
 								`UID: ${userUid}`,
 								`Время: ${feedbackTime}`,
 								`Пользователь: ${userName}`,
 								`ID пользователя: ${userId}`,
-							].join("\n");
+							].filter(Boolean).join("\n");
 
 							const adminResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
 								method: "POST",
 								headers: { "content-type": "application/json" },
 								body: JSON.stringify({
-									chat_id: "-1003815117903",
+									chat_id: "-1003764590191",
 									text: adminMessage,
 								}),
 							});
@@ -235,6 +238,23 @@ export default {
 							if (!adminResponse.ok) {
 								const errorText = await adminResponse.text();
 								console.error("Failed to send feedback confirmation to admin group:", errorText);
+							}
+
+							if (hasMediaAttachment) {
+								const forwardResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/forwardMessage`, {
+									method: "POST",
+									headers: { "content-type": "application/json" },
+									body: JSON.stringify({
+										chat_id: "-1003764590191",
+										from_chat_id: chatId,
+										message_id: message.message_id,
+									}),
+								});
+
+								if (!forwardResponse.ok) {
+									const errorText = await forwardResponse.text();
+									console.error("Failed to forward feedback media to admin group:", errorText);
+								}
 							}
 
 							await env.KV.delete(`fsm:${userId}`);
@@ -279,7 +299,7 @@ export default {
 								method: "POST",
 								headers: { "content-type": "application/json" },
 								body: JSON.stringify({
-									chat_id: "-1003815117903",
+									chat_id: "-1003764590191",
 									text: adminMessage,
 								}),
 							});
@@ -321,7 +341,7 @@ export default {
 								method: "POST",
 								headers: { "content-type": "application/json" },
 								body: JSON.stringify({
-									chat_id: "-1003815117903",
+									chat_id: "-1003764590191",
 									text: adminMessage,
 								}),
 							});
@@ -363,7 +383,7 @@ export default {
 								method: "POST",
 								headers: { "content-type": "application/json" },
 								body: JSON.stringify({
-									chat_id: "-1003815117903",
+									chat_id: "-1003764590191",
 									text: adminMessage,
 								}),
 							});

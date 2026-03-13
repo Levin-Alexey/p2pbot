@@ -60,7 +60,7 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 		"- Все расчеты ведутся <b>только внутри платформы Bybit.</b>",
 		"- Не переходите по сторонним ссылкам и не переводите деньги напрямую продавцу без подтверждения сделки на бирже.",
 		"",
-		"- Если у вас еще нет аккаунта на <a href=\"https://ya.ru\">Bybit</a>. Бонусы до 30 000 USDT при регистрации.",
+		"- Если у вас еще нет аккаунта на <a href=\"https://partner.bybit.com/b/netormozibtc\">Bybit</a>. Бонусы до 30 000 USDT при регистрации.",
 	].join("\n");
 
 	await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
@@ -121,7 +121,7 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 					second: "2-digit",
 				}).format(new Date());
 
-				const adminText = [
+				const fullAdminText = [
 					`🔔 Новый клиент! ${userName} ${userId}`,
 					"",
 					"Клиент запросил сделку:",
@@ -129,17 +129,33 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 					`🕐 Время запроса: ${requestTime}`,
 				].join("\n");
 
-				const adminResponse = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+				const shortAdminText = `ID order: ${orderId}`;
+
+				const shortAdminResponse = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
 					method: "POST",
 					headers: { "content-type": "application/json" },
 					body: JSON.stringify({
 						chat_id: "-1003815117903",
-						text: adminText,
+						text: shortAdminText,
 					}),
 				});
 
-				if (adminResponse.ok) {
-					const adminResult = await adminResponse.json();
+				if (!shortAdminResponse.ok) {
+					const errorText = await shortAdminResponse.text();
+					console.error("Failed to send short buy order to admin group:", errorText);
+				}
+
+				const fullAdminResponse = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						chat_id: "-1003764590191",
+						text: fullAdminText,
+					}),
+				});
+
+				if (fullAdminResponse.ok) {
+					const adminResult = await fullAdminResponse.json();
 					const adminMessageId = adminResult?.result?.message_id;
 
 					if (adminMessageId) {
@@ -149,8 +165,8 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 							.run();
 					}
 				} else {
-					const errorText = await adminResponse.text();
-					console.error("Failed to send buy order to admin group:", errorText);
+					const errorText = await fullAdminResponse.text();
+					console.error("Failed to send full buy order to admin group:", errorText);
 				}
 			}
 		} catch (dbError) {
