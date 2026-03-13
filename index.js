@@ -148,7 +148,16 @@ export default {
 							await sendTelegramMessage(
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
-								"Выберите кнопку ниже: «Ввести UID» или «Пропустить»."
+								"Выберите кнопку ниже: «Ввести UID» или «Пропустить».",
+								{
+									reply_markup: {
+										inline_keyboard: [
+											[{ text: "Ввести UID", callback_data: "feedback_enter_uid" }],
+											[{ text: "Пропустить", callback_data: "feedback_skip_uid" }],
+											[{ text: "В главное меню", callback_data: "continue" }],
+										],
+									},
+								}
 							);
 						}
 
@@ -715,6 +724,7 @@ async function runOrderFeedbackTimerCheck(env) {
 						reply_markup: {
 							inline_keyboard: [
 								[{ text: "📨 Отправить подтверждение", callback_data: `submit_feedback:${row.id}` }],
+								[{ text: "В главное меню", callback_data: "continue" }],
 							],
 						},
 					}),

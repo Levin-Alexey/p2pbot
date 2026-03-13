@@ -26,7 +26,10 @@ export async function handleSellUsdtCallback({ token, callbackQuery }) {
 			text: "✅ Вы выбрали: <b>ПРОДАЖА USDT</b>\nСейчас вы будете перенаправлены в <b>официальное P2P-объявление от ИП Золотая А.В (ИНН 232905828857)</b> на бирже Bybit.\n\n🔐 <b>Важно</b>:\nВся сделка проходит <b>исключительно внутри Bybit по правилам криптобиржи.</b>\nПродажа выполняется через официальный P2P-сценарий - быстро и безопасно.",
 			parse_mode: "HTML",
 			reply_markup: {
-				inline_keyboard: [[{ text: "Получить ссылку на сделку", callback_data: "sell_usdt_link" }]],
+				inline_keyboard: [
+					[{ text: "Получить ссылку на сделку", callback_data: "sell_usdt_link" }],
+					[{ text: "В главное меню", callback_data: "continue" }],
+				],
 			},
 		}),
 	});

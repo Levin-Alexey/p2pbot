@@ -29,6 +29,7 @@ export async function handleLegalExchangeRequestCallback({ token, callbackQuery 
 			reply_markup: {
 				inline_keyboard: [
 					[{ text: "👉 Оставить заявку", callback_data: "leave_legal_request" }],
+					[{ text: "В главное меню", callback_data: "continue" }],
 				],
 			},
 		}),

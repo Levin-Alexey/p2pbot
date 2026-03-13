@@ -29,6 +29,7 @@ export async function handleLargeAmountRequestCallback({ token, callbackQuery })
 			reply_markup: {
 				inline_keyboard: [
 					[{ text: "👉 📨 Оставить заявку для юрлиц", callback_data: "leave_company_request" }],
+					[{ text: "В главное меню", callback_data: "continue" }],
 				],
 			},
 		}),

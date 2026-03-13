@@ -26,6 +26,9 @@ export async function handleLeaveLegalRequestCallback({ token, callbackQuery, kv
 			body: JSON.stringify({
 				chat_id: chatId,
 				text: "Напишите удобное время, когда с Вами можно связаться",
+				reply_markup: {
+					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
+				},
 			}),
 		});
 

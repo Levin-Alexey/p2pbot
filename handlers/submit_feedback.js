@@ -65,6 +65,7 @@ export async function handleSubmitFeedbackCallback({ token, callbackQuery, kv, d
 					inline_keyboard: [
 						[{ text: "Ввести UID", callback_data: "feedback_enter_uid" }],
 						[{ text: "Пропустить", callback_data: "feedback_skip_uid" }],
+						[{ text: "В главное меню", callback_data: "continue" }],
 					],
 				},
 			}),
@@ -102,6 +103,9 @@ export async function handleFeedbackEnterUidCallback({ token, callbackQuery, kv 
 			body: JSON.stringify({
 				chat_id: chatId,
 				text: "Введите ваш UID:",
+				reply_markup: {
+					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
+				},
 			}),
 		});
 
@@ -137,6 +141,9 @@ export async function handleFeedbackSkipUidCallback({ token, callbackQuery, kv }
 			body: JSON.stringify({
 				chat_id: chatId,
 				text: "Всё ли прошло гладко? (да / есть вопросы)",
+				reply_markup: {
+					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
+				},
 			}),
 		});
 

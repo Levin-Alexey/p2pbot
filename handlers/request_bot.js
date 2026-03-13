@@ -31,6 +31,7 @@ export async function handleRequestBotCallback({ token, callbackQuery }) {
 			reply_markup: {
 				inline_keyboard: [
 					[{ text: "Отправить сообщение", callback_data: "send_message" }],
+					[{ text: "В главное меню", callback_data: "continue" }],
 				],
 			},
 		}),

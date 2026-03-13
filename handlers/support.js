@@ -27,6 +27,9 @@ export async function handleSupportCallback({ token, callbackQuery, kv }) {
 				chat_id: chatId,
 				text: "Напишите ваш вопрос или сообщение ниже.\nМы стараемся отвечать в течение <b>1-2 рабочих дней.</b>\n\n📎 Вы можете прикрепить скриншот - это поможет быстрее разобраться в ситуации.",
 				parse_mode: "HTML",
+				reply_markup: {
+					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
+				},
 			}),
 		});
 
