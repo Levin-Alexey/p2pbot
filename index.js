@@ -89,7 +89,7 @@ export default {
 						await env.DB.prepare(query).bind(newLink).run();
 
 						// Отправляем подтверждение в топик
-						const replyText = `✅ Успешно!\nСсылка для ${targetColumn.toUpperCase()} обновлена в базе:\n${newLink}`;
+						const replyText = `✅ Спасибо!\nСсылка для ${targetColumn.toUpperCase()} обновлена. Новая ссылка\n${newLink}`;
 						await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, replyText, {
 							message_thread_id: ALLOWED_THREAD_ID,
 						});
