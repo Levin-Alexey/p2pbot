@@ -132,7 +132,19 @@ export async function handleSellUsdtLinkCallback({ token, callbackQuery, db }) {
 					`🕐 Время запроса: ${requestTime}`,
 				].join("\n");
 
-				const shortAdminText = `ID order: ${orderId}`;
+				const shortAdminText = [
+					`🔔 Новый клиент ${orderId}!`,
+					"",
+					"Клиент запросил сделку:",
+					"",
+					"━━━━━━━━━━━━━━━━━━━",
+					"",
+					"🧾 Тип: [ ПРОДАЖА USDT]",
+					"",
+					`🕐 Время запроса: [${requestTime}]`,
+					"",
+					"━━━━━━━━━━━━━━━━━━━",
+				].join("\n");
 
 				const shortAdminResponse = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
 					method: "POST",

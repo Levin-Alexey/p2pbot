@@ -324,6 +324,11 @@ export default {
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
 								"✅ Спасибо! Мы получили вашу заявку. Свяжемся с вами в удобное время.",
+								{
+									reply_markup: {
+										inline_keyboard: [[{ text: "Главное меню", callback_data: "continue" }]],
+									},
+								},
 							);
 						}
 
@@ -366,6 +371,11 @@ export default {
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
 								"✅ Спасибо! Мы получили вашу заявку. Свяжемся с вами в удобное время.",
+								{
+									reply_markup: {
+										inline_keyboard: [[{ text: "Главное меню", callback_data: "continue" }]],
+									},
+								},
 							);
 						}
 
@@ -408,6 +418,11 @@ export default {
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
 								"✅ Спасибо! Мы получили вашу заявку. Свяжемся с вами в удобное время.",
+								{
+									reply_markup: {
+										inline_keyboard: [[{ text: "Главное меню", callback_data: "continue" }]],
+									},
+								},
 							);
 						}
 
@@ -447,7 +462,7 @@ export default {
 								method: "POST",
 								headers: { "content-type": "application/json" },
 								body: JSON.stringify({
-									chat_id: "-1003815117903",
+									chat_id: "-1003764590191",
 									text: adminMessage,
 									parse_mode: "HTML",
 								}),
@@ -464,7 +479,7 @@ export default {
 									method: "POST",
 									headers: { "content-type": "application/json" },
 									body: JSON.stringify({
-										chat_id: "-1003815117903",
+										chat_id: "-1003764590191",
 										from_chat_id: chatId,
 										message_id: message.message_id,
 									}),
