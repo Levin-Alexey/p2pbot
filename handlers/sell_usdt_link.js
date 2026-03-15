@@ -21,7 +21,7 @@ export async function handleSellUsdtLinkCallback({ token, callbackQuery, db }) {
 		return;
 	}
 
-	let sellLink = "https://ya.ru";
+	let sellLink = null;
 
 	if (db) {
 		try {
@@ -33,6 +33,8 @@ export async function handleSellUsdtLinkCallback({ token, callbackQuery, db }) {
 		} catch (dbError) {
 			console.error("Failed to load sell_link from bot_settings:", dbError);
 		}
+	} else {
+		console.error("D1 DB is not available for sell_link");
 	}
 
 	await fetch(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
@@ -43,24 +45,39 @@ export async function handleSellUsdtLinkCallback({ token, callbackQuery, db }) {
 		}),
 	});
 
+	if (!sellLink) {
+		await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				chat_id: chatId,
+				message_id: messageId,
+				text: "Ссылка на продажу временно недоступна. Попробуйте позже или свяжитесь с поддержкой.",
+				reply_markup: {
+					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
+				},
+			}),
+		});
+		return;
+	}
+
 	const safeSellLink = escapeHtml(sellLink);
 	const text = [
-		"🔗 <b>Ваша персональная ссылка на сделку:</b>",
+		"🔗 <b>Ваша персональная ссылка на продажу USDT:</b>",
 		`<a href=\"${safeSellLink}\">${safeSellLink}</a>`,
 		"",
-		"📌 <b>Что делать дальше:</b>",
+		"📌 <b>Инструкция:</b>",
 		"Перейдите по ссылке - вы попадете в P2P-объявление моего партнера (Команда MsGold) на Bybit.",
 		"",
-		"Нажмите <b>«ПРОДАЖА USDT»</b> и следуйте инструкциям биржи.",
-		"Следуйте реквизитам и шагам, которые укажет наш операционный партнер внутри сделки.",
+		"Нажмите <b>«ПРОДАТЬ USDT»</b>. Укажите сумму и подтвердите сделку.",
 		"",
-		"После подтверждения USDT будут проданы <b>через официальный P2P-механизм Bybit.</b>",
+		"После подтверждения от команды MsGold <b>вам поступят рубли на вашу карту или счёт в вашем банке.</b>",
 		"",
 		"⚠️ <b>Важно!</b>",
-		"- Все расчеты ведутся <b>только внутри платформы Bybit.</b>",
-		"- Не переходите по сторонним ссылкам и не проводите расчеты вне подтвержденной сделки на бирже.",
+		"- Никогда не переводите USDT напрямую «вручную» - только <b>через интерфейс P2P-сделки на Bybit.</b>",
+		"- Все споры и гарантии регулируются <b>системой безопасности Bybit.</b>",
 		"",
-		"- Если у вас еще нет аккаунта на <a href=\"https://ya.ru\">Bybit</a>. Бонусы до 30 000 USDT при регистрации.",
+		"- Если у вас еще нет аккаунта на <a href=\"https://partner.bybit.com/b/netormozibtc\">Bybit</a>. Бонусы до 30 000 USDT при регистрации.",
 	].join("\n");
 
 	await fetch(`${TELEGRAM_API}${token}/editMessageText`, {

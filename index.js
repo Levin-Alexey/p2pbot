@@ -8,7 +8,7 @@ import { handleBuyUsdtCallback } from "./handlers/buy_usdt.js";
 import { handleBuyUsdtLinkCallback } from "./handlers/buy_usdt_link.js";
 import { handleSellUsdtCallback } from "./handlers/sell_usdt.js";
 import { handleSellUsdtLinkCallback } from "./handlers/sell_usdt_link.js";
-import { handleSupportCallback } from "./handlers/support.js";
+import { handleSupportCallback, handleSupportWriteMessageCallback } from "./handlers/support.js";
 import { handleSendMessageCallback } from "./handlers/send_message.js";
 import { handleLargeAmountRequestCallback } from "./handlers/large_amount_request.js";
 import { handleLegalExchangeRequestCallback } from "./handlers/legal_exchange_request.js";
@@ -495,7 +495,7 @@ export default {
 							await sendTelegramMessage(
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
-								"✅ Ваше сообщение отправлено команде поддержки.\n\nМы ответим вам <b>прямо в этом чате</b>, как только обработаем запрос.\n\nСпасибо, что пользуетесь сервисом <b>«НЕ ТОРМОЗИ С BTC»!</b> 🙏",
+								"✅ Ваше сообщение отправлено команде поддержки.\n\n<b>Мы ответим вам напрямую</b>, как только обработаем запрос.\n\nСпасибо, что пользуетесь сервисом <b>«НЕ ТОРМОЗИ С BTC»!</b> 🙏",
 								{
 									parse_mode: "HTML",
 									reply_markup: {
@@ -596,6 +596,14 @@ export default {
 
 			if (callbackQuery?.data === "support") {
 				await handleSupportCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+					kv: env.KV,
+				});
+			}
+
+			if (callbackQuery?.data === "support_write_message") {
+				await handleSupportWriteMessageCallback({
 					token: env.TELEGRAM_BOT_TOKEN,
 					callbackQuery,
 					kv: env.KV,

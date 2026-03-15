@@ -21,7 +21,7 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 		return;
 	}
 
-	let buyLink = "https://ya.ru";
+	let buyLink = null;
 
 	if (db) {
 		try {
@@ -33,6 +33,8 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 		} catch (dbError) {
 			console.error("Failed to load buy_link from bot_settings:", dbError);
 		}
+	} else {
+		console.error("D1 DB is not available for buy_link");
 	}
 
 	await fetch(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
@@ -42,6 +44,22 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 			callback_query_id: callbackQueryId,
 		}),
 	});
+
+	if (!buyLink) {
+		await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				chat_id: chatId,
+				message_id: messageId,
+				text: "Ссылка на покупку временно недоступна. Попробуйте позже или свяжитесь с поддержкой.",
+				reply_markup: {
+					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
+				},
+			}),
+		});
+		return;
+	}
 
 	const safeBuyLink = escapeHtml(buyLink);
 	const text = [
