@@ -22,7 +22,7 @@ export async function handleSupportCallback({ token, callbackQuery, kv }) {
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				chat_id: chatId,
-				text: "Напишите ваш вопрос или сообщение ниже.\nМы стараемся отвечать в течение 1-2 рабочих дней.\n\n📎 Вы можете прикрепить скриншот - это поможет быстрее разобраться в ситуации.",
+				text: "Напишите ваш вопрос или сообщение ниже.\n\nМы стараемся отвечать в течение 1-2 рабочих дней.\n\n📎 Вы можете прикрепить скриншот - это поможет быстрее разобраться в ситуации.",
 				reply_markup: {
 					inline_keyboard: [
 						[{ text: "Написать сообщение в поддержку", callback_data: "support_write_message" }],
