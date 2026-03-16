@@ -140,7 +140,7 @@ export async function handleFeedbackSkipUidCallback({ token, callbackQuery, kv }
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				chat_id: chatId,
-				text: "Всё ли прошло гладко? (да / есть вопросы)",
+				text: "Всё ли прошло гладко? (да / есть вопросы). Напишите текст ниже в сообщении.",
 				reply_markup: {
 					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
 				},
