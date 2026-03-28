@@ -18,7 +18,8 @@ import {
 	handleFeedbackSkipUidCallback,
 } from "./handlers/submit_feedback.js";
 import { DAILY_TOPIC_REMINDERS } from "./reminders/daily_topic_reminders.js";
-import { ADMIN_CHAT_ID, ADMIN_THREAD_ID, ensureLinkTtlColumns } from "./handlers/link_lifetime.js";
+import { ADMIN_CHAT_ID, ADMIN_THREAD_ID, LINK_TTL_MINUTES, ensureLinkTtlColumns } from "./handlers/link_lifetime.js";
+import { deliverPendingLinkRequests } from "./handlers/pending_link_requests.js";
 
 export default {
 	async fetch(request, env) {
@@ -92,13 +93,26 @@ export default {
 						const query = `UPDATE bot_settings SET ${targetColumn} = ?, ${targetCreatedAtColumn} = CURRENT_TIMESTAMP WHERE id = 1`;
 						await env.DB.prepare(query).bind(newLink).run();
 
+						const orderType = targetColumn === "buy_link" ? "buy" : "sell";
+						const deliveryStats = await deliverPendingLinkRequests({
+							db: env.DB,
+							token: env.TELEGRAM_BOT_TOKEN,
+							orderType,
+							link: newLink,
+							adminChatId: ADMIN_CHAT_ID,
+							adminThreadId: ADMIN_THREAD_ID,
+							linkTtlMinutes: LINK_TTL_MINUTES,
+						});
+
 						// Отправляем подтверждение в топик
 						const replyText = `✅ Спасибо!\nСсылка для ${targetColumn.toUpperCase()} обновлена. Новая ссылка\n${newLink}`;
 						await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, replyText, {
 							message_thread_id: ADMIN_THREAD_ID,
 						});
 
-						console.log(`[link-update] Updated ${targetColumn} and ${targetCreatedAtColumn} for id=1`);
+						console.log(
+							`[link-update] Updated ${targetColumn} and ${targetCreatedAtColumn} for id=1; delivered=${deliveryStats.delivered}; failed=${deliveryStats.failed}; expired=${deliveryStats.expired}`
+						);
 					}
 				} catch (error) {
 					console.error("Error processing link update message:", error);

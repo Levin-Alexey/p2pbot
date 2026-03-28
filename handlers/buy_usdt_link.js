@@ -5,6 +5,7 @@ import {
 	LINK_TTL_MINUTES,
 	getLinkState,
 } from "./link_lifetime.js";
+import { enqueuePendingLinkRequest } from "./pending_link_requests.js";
 
 function escapeHtml(value) {
 	return String(value)
@@ -59,12 +60,26 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 	}
 
 	if (!isFreshLink) {
+		if (db && userId) {
+			try {
+				const queueResult = await enqueuePendingLinkRequest({
+					db,
+					userId,
+					orderType: "buy",
+					messageId,
+				});
+				console.log(
+					`[pending-link] type=buy user=${userId} queued=${queueResult?.queued} reason=${queueResult?.reason || "unknown"}`
+				);
+			} catch (queueError) {
+				console.error("Failed to enqueue pending buy link request:", queueError);
+			}
+		}
+
 		const waitingText = [
-			"⏳ <b>Ссылка на сделку формируется.</b>",
-			"Обычно это занимает до 5 минут.",
-			"",
-			"⚠️ Срок жизни ссылки после выдачи: <b>30 минут</b>.",
-			"Пожалуйста, не откладывайте вход в объявление.",
+			"⏳ Ссылка на сделку формируется.",
+			"Пожалуйста, ожидайте <b>3–5 минут</b>.",
+			"Мы уведомим вас, как только ссылка будет готова.",
 		].join("\n");
 
 		await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
@@ -121,6 +136,8 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 		const text = [
 			"🔗 <b>Ваша персональная ссылка на сделку:</b>",
 			`<a href=\"${safeBuyLink}\">${safeBuyLink}</a>`,
+			"",
+			"Ссылка <b>действительна 30 минут.</b> Не откладывайте сделку!",
 			"",
 			"📌 <b>Что делать дальше:</b>",
 			"Перейдите по ссылке - вы попадете в P2P-объявление моего партнера (Команда MsGold) на Bybit.",
@@ -220,6 +237,7 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 					"",
 					"🧾 Тип: [ПОКУПКА USDT]",
 					"",
+					"<B>ВЫ СОЗДАЕТЕ ОБЪЯВЛЕНИЕ НА ПРОДАЖА USDT (SELL)</B>",
 					`🕐 Время запроса: [${requestTime}]`,
 					"",
 					"━━━━━━━━━━━━━━━━━━━",
