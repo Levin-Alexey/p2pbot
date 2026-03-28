@@ -1,6 +1,4 @@
 const TELEGRAM_API = "https://api.telegram.org/bot";
-const ALLOWED_CHAT_ID = -1003815117903; // Админ-группа где обновляются ссылки
-const ALLOWED_THREAD_ID = 4; // Топик для обновления ссылок
 
 import { handleContinueCallback } from "./handlers/continue.js";
 import { handleRequestBotCallback } from "./handlers/request_bot.js";
@@ -20,6 +18,7 @@ import {
 	handleFeedbackSkipUidCallback,
 } from "./handlers/submit_feedback.js";
 import { DAILY_TOPIC_REMINDERS } from "./reminders/daily_topic_reminders.js";
+import { ADMIN_CHAT_ID, ADMIN_THREAD_ID, ensureLinkTtlColumns } from "./handlers/link_lifetime.js";
 
 export default {
 	async fetch(request, env) {
@@ -52,23 +51,28 @@ export default {
 			// ============================================
 			// ОБРАБОТКА ОБНОВЛЕНИЯ ССЫЛОК В ТОПИКЕ
 			// ============================================
-			if (message && text && chatId === ALLOWED_CHAT_ID) {
+			if (message && text && chatId === ADMIN_CHAT_ID) {
 				try {
 					let newLink = null;
 					let targetColumn = null;
+					let targetCreatedAtColumn = null;
 
 					// Ищем ключевые слова и извлекаем ссылку
 					if (text.startsWith("BUY_LINK=")) {
 						newLink = text.slice("BUY_LINK=".length).trim();
 						targetColumn = "buy_link";
+						targetCreatedAtColumn = "buy_link_created_at";
 					} else if (text.startsWith("SELL_LINK=")) {
 						newLink = text.slice("SELL_LINK=".length).trim();
 						targetColumn = "sell_link";
+						targetCreatedAtColumn = "sell_link_created_at";
 					}
 
 					// Если найдена ссылка, обновляем базу
-					if (newLink && targetColumn && env.DB) {
-						if (threadId !== ALLOWED_THREAD_ID) {
+					if (newLink && targetColumn && targetCreatedAtColumn && env.DB) {
+						await ensureLinkTtlColumns(env.DB);
+
+						if (threadId !== ADMIN_THREAD_ID) {
 							console.log(`Ignored link update command from wrong topic: ${threadId}`);
 							return new Response("OK", { status: 200 });
 						}
@@ -80,21 +84,21 @@ export default {
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
 								"❌ Неверный формат ссылки. Пример: BUY_LINK=https://example.com",
-								{ message_thread_id: ALLOWED_THREAD_ID }
+								{ message_thread_id: ADMIN_THREAD_ID }
 							);
 							return new Response("OK", { status: 200 });
 						}
 
-						const query = `UPDATE bot_settings SET ${targetColumn} = ? WHERE id = 1`;
+						const query = `UPDATE bot_settings SET ${targetColumn} = ?, ${targetCreatedAtColumn} = CURRENT_TIMESTAMP WHERE id = 1`;
 						await env.DB.prepare(query).bind(newLink).run();
 
 						// Отправляем подтверждение в топик
 						const replyText = `✅ Спасибо!\nСсылка для ${targetColumn.toUpperCase()} обновлена. Новая ссылка\n${newLink}`;
 						await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, replyText, {
-							message_thread_id: ALLOWED_THREAD_ID,
+							message_thread_id: ADMIN_THREAD_ID,
 						});
 
-						console.log(`Updated ${targetColumn}: ${newLink}`);
+						console.log(`[link-update] Updated ${targetColumn} and ${targetCreatedAtColumn} for id=1`);
 					}
 				} catch (error) {
 					console.error("Error processing link update message:", error);

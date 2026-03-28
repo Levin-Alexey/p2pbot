@@ -1,4 +1,10 @@
 const TELEGRAM_API = "https://api.telegram.org/bot";
+import {
+	ADMIN_CHAT_ID,
+	ADMIN_THREAD_ID,
+	LINK_TTL_MINUTES,
+	getLinkState,
+} from "./link_lifetime.js";
 
 function escapeHtml(value) {
 	return String(value)
@@ -22,20 +28,8 @@ export async function handleSellUsdtLinkCallback({ token, callbackQuery, db }) {
 	}
 
 	let sellLink = null;
-
-	if (db) {
-		try {
-			const settings = await db.prepare("SELECT sell_link FROM bot_settings WHERE id = ?").bind(1).first();
-
-			if (settings?.sell_link && String(settings.sell_link).trim()) {
-				sellLink = String(settings.sell_link).trim();
-			}
-		} catch (dbError) {
-			console.error("Failed to load sell_link from bot_settings:", dbError);
-		}
-	} else {
-		console.error("D1 DB is not available for sell_link");
-	}
+	let linkAgeMinutes = null;
+	let isFreshLink = false;
 
 	await fetch(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
 		method: "POST",
@@ -45,55 +39,121 @@ export async function handleSellUsdtLinkCallback({ token, callbackQuery, db }) {
 		}),
 	});
 
-	if (!sellLink) {
+	if (db) {
+		try {
+			const linkState = await getLinkState({ db, linkType: "sell" });
+			sellLink = linkState.link;
+			linkAgeMinutes = linkState.ageMinutes;
+			isFreshLink = linkState.isFresh;
+
+			console.log(
+				`[link-check] type=sell user=${userId || "unknown"} hasLink=${Boolean(sellLink)} ageMinutes=${
+					linkAgeMinutes === null ? "null" : linkAgeMinutes.toFixed(2)
+				} isFresh=${isFreshLink}`
+			);
+		} catch (dbError) {
+			console.error("Failed to load sell link state from bot_settings:", dbError);
+		}
+	} else {
+		console.error("D1 DB is not available for sell link state");
+	}
+
+	if (!isFreshLink) {
+		const waitingText = [
+			"⏳ <b>Ссылка на сделку формируется.</b>",
+			"Обычно это занимает до 5 минут.",
+			"",
+			"⚠️ Срок жизни ссылки после выдачи: <b>30 минут</b>.",
+			"Пожалуйста, не откладывайте вход в объявление.",
+		].join("\n");
+
 		await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				chat_id: chatId,
 				message_id: messageId,
-				text: "Ссылка на продажу временно недоступна. Попробуйте позже или свяжитесь с поддержкой.",
+				text: waitingText,
+				parse_mode: "HTML",
 				reply_markup: {
 					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
 				},
 			}),
 		});
-		return;
+
+		const moscowRequestTime = new Intl.DateTimeFormat("ru-RU", {
+			timeZone: "Europe/Moscow",
+			year: "numeric",
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			second: "2-digit",
+		}).format(new Date());
+
+		const partnerNotice = [
+			"🔄 Требуется обновление ссылки на сделку",
+			"",
+			"Тип: ПРОДАЖА USDT",
+			`Пользователь: ${userName} (${userId || "unknown"})`,
+			`Время запроса (MSK): ${moscowRequestTime}`,
+			`Причина: ${sellLink ? `ссылка старше ${LINK_TTL_MINUTES} минут` : "ссылка отсутствует"}`,
+			"",
+			"Пожалуйста, отправьте новую команду в этот топик: SELL_LINK=https://...",
+		].join("\n");
+
+		const partnerNoticeResponse = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				chat_id: ADMIN_CHAT_ID,
+				message_thread_id: ADMIN_THREAD_ID,
+				text: partnerNotice,
+			}),
+		});
+
+		if (!partnerNoticeResponse.ok) {
+			const errorText = await partnerNoticeResponse.text();
+			console.error("Failed to send sell link refresh notice to admin topic:", errorText);
+		}
+	} else {
+		const safeSellLink = escapeHtml(sellLink);
+		const text = [
+			"🔗 <b>Ваша персональная ссылка на продажу USDT:</b>",
+			`<a href=\"${safeSellLink}\">${safeSellLink}</a>`,
+			"",
+			"📌 <b>Инструкция:</b>",
+			"Перейдите по ссылке - вы попадете в P2P-объявление моего партнера (Команда MsGold) на Bybit.",
+			"",
+			"Нажмите <b>«ПРОДАТЬ USDT»</b>. Укажите сумму и подтвердите сделку.",
+			"",
+			"После подтверждения от команды MsGold <b>вам поступят рубли на вашу карту или счет в вашем банке.</b>",
+			"",
+			"⏱ <b>Срок жизни ссылки: 30 минут.</b>",
+			"Не откладывайте вход в объявление.",
+			"",
+			"⚠️ <b>Важно!</b>",
+			"- Никогда не переводите USDT напрямую «вручную» - только <b>через интерфейс P2P-сделки на Bybit.</b>",
+			"- Все споры и гарантии регулируются <b>системой безопасности Bybit.</b>",
+			"",
+			"- Если у вас еще нет аккаунта на <a href=\"https://partner.bybit.com/b/netormozibtc\">Bybit</a>. Бонусы до 30 000 USDT при регистрации.",
+		].join("\n");
+
+		await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				chat_id: chatId,
+				message_id: messageId,
+				text,
+				parse_mode: "HTML",
+				disable_web_page_preview: true,
+				reply_markup: {
+					inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
+				},
+			}),
+		});
 	}
-
-	const safeSellLink = escapeHtml(sellLink);
-	const text = [
-		"🔗 <b>Ваша персональная ссылка на продажу USDT:</b>",
-		`<a href=\"${safeSellLink}\">${safeSellLink}</a>`,
-		"",
-		"📌 <b>Инструкция:</b>",
-		"Перейдите по ссылке - вы попадете в P2P-объявление моего партнера (Команда MsGold) на Bybit.",
-		"",
-		"Нажмите <b>«ПРОДАТЬ USDT»</b>. Укажите сумму и подтвердите сделку.",
-		"",
-		"После подтверждения от команды MsGold <b>вам поступят рубли на вашу карту или счёт в вашем банке.</b>",
-		"",
-		"⚠️ <b>Важно!</b>",
-		"- Никогда не переводите USDT напрямую «вручную» - только <b>через интерфейс P2P-сделки на Bybit.</b>",
-		"- Все споры и гарантии регулируются <b>системой безопасности Bybit.</b>",
-		"",
-		"- Если у вас еще нет аккаунта на <a href=\"https://partner.bybit.com/b/netormozibtc\">Bybit</a>. Бонусы до 30 000 USDT при регистрации.",
-	].join("\n");
-
-	await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({
-			chat_id: chatId,
-			message_id: messageId,
-			text,
-			parse_mode: "HTML",
-			disable_web_page_preview: true,
-			reply_markup: {
-				inline_keyboard: [[{ text: "В главное меню", callback_data: "continue" }]],
-			},
-		}),
-	});
 
 	if (db && userId) {
 		try {
