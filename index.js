@@ -660,15 +660,15 @@ export default {
 		}
 	},
 	async scheduled(event, env, ctx) {
-		if (event.cron === "30 5 * * *") {
-			if (!env.TELEGRAM_BOT_TOKEN) {
-				console.error("TELEGRAM_BOT_TOKEN is not set for scheduled job");
-				return;
-			}
+		// if (event.cron === "30 5 * * *") {
+		// 	if (!env.TELEGRAM_BOT_TOKEN) {
+		// 		console.error("TELEGRAM_BOT_TOKEN is not set for scheduled job");
+		// 		return;
+		// 	}
 
-			ctx.waitUntil(runDailyTopicReminders(env));
-			return;
-		}
+		// 	ctx.waitUntil(runDailyTopicReminders(env));
+		// 	return;
+		// }
 
 		if (event.cron === "*/5 * * * *") {
 			ctx.waitUntil(runOrderFeedbackTimerCheck(env));

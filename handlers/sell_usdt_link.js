@@ -80,6 +80,10 @@ export async function handleSellUsdtLinkCallback({ token, callbackQuery, db }) {
 			"⏳ Ссылка на сделку формируется.",
 			"Пожалуйста, ожидайте <b>3–5 минут</b>.",
 			"Мы уведомим вас, как только ссылка будет готова.",
+			"",
+			"🎓 Кстати, чтобы время ожидания прошло с пользой:",
+			"Подпишитесь на YouTube-канал Александра. Там он простым языком объясняет технический анализ, паттерны и поведение рынка.",
+			'📺 <a href="https://www.youtube.com/@netormoziBTC">Ссылка на канал</a>',
 		].join("\n");
 
 		await fetch(`${TELEGRAM_API}${token}/editMessageText`, {
