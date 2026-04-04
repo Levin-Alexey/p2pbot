@@ -1,6 +1,6 @@
 export const ADMIN_CHAT_ID = -1003815117903;
 export const ADMIN_THREAD_ID = 4;
-export const LINK_TTL_MINUTES = 29;
+export const LINK_TTL_MINUTES = 19;
 
 let ttlColumnsEnsured = false;
 
