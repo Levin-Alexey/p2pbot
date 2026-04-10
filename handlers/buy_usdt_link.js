@@ -114,7 +114,6 @@ export async function handleBuyUsdtLinkCallback({ token, callbackQuery, db }) {
 			"🔄 Требуется обновление ссылки на сделку",
 			"",
 			"Тип: ПОКУПКА USDT",
-			`Пользователь: ${userName} (${userId || "unknown"})`,
 			`Время запроса (MSK): ${moscowRequestTime}`,
 			`Причина: ${buyLink ? `ссылка старше ${LINK_TTL_MINUTES} минут` : "ссылка отсутствует"}`,
 			"",
