@@ -1,4 +1,5 @@
 const TELEGRAM_API = "https://api.telegram.org/bot";
+const PENDING_LINK_REQUEST_TTL_MINUTES = 600;
 
 function escapeHtml(value) {
 	return String(value)
@@ -21,7 +22,7 @@ export async function ensurePendingLinkRequestsTable(db) {
 				order_type TEXT NOT NULL CHECK(order_type IN ('buy', 'sell')),
 				status TEXT NOT NULL DEFAULT 'waiting' CHECK(status IN ('waiting', 'sent', 'failed', 'expired', 'canceled')),
 				requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-				expires_at TEXT NOT NULL DEFAULT (datetime('now', '+600 minutes')),
+				expires_at TEXT NOT NULL DEFAULT (datetime('now', '+${PENDING_LINK_REQUEST_TTL_MINUTES} minutes')),
 				sent_at TEXT,
 				notify_attempts INTEGER NOT NULL DEFAULT 0,
 				last_prompt_message_id INTEGER,
@@ -79,7 +80,7 @@ export async function enqueuePendingLinkRequest({ db, userId, orderType, message
 			.prepare(
 				`UPDATE pending_link_requests
 				 SET requested_at = CURRENT_TIMESTAMP,
-				 expires_at = datetime('now', '+600 minutes'),
+					 expires_at = datetime('now', '+${PENDING_LINK_REQUEST_TTL_MINUTES} minutes'),
 					 last_prompt_message_id = ?,
 					 notify_attempts = 0,
 					 error_text = NULL
@@ -101,7 +102,7 @@ export async function enqueuePendingLinkRequest({ db, userId, orderType, message
 				expires_at,
 				last_prompt_message_id,
 				notify_attempts
-			) VALUES (?, ?, 'waiting', CURRENT_TIMESTAMP, datetime('now', '+600 minutes'), ?, 0)`
+			) VALUES (?, ?, 'waiting', CURRENT_TIMESTAMP, datetime('now', '+${PENDING_LINK_REQUEST_TTL_MINUTES} minutes'), ?, 0)`
 		)
 		.bind(userId, orderType, messageId || null)
 		.run();

@@ -1,4 +1,5 @@
 const TELEGRAM_API = "https://api.telegram.org/bot";
+import { startLeadRequestFlow } from "./lead_request_flow.js";
 
 export async function handleSupportCallback({ token, callbackQuery, kv }) {
 	const callbackQueryId = callbackQuery?.id;
@@ -45,26 +46,14 @@ export async function handleSupportWriteMessageCallback({ token, callbackQuery, 
 	}
 
 	try {
-		await fetch(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				callback_query_id: callbackQueryId,
-			}),
+		await startLeadRequestFlow({
+			token,
+			callbackQueryId,
+			chatId,
+			userId,
+			kv,
+			state: "waiting_contact_support_1",
 		});
-
-		await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				chat_id: chatId,
-				text: "Введите текст вашего сообщения в поле ниже.",
-			}),
-		});
-
-		if (kv) {
-			await kv.put(`fsm:${userId}`, "waiting_support_message");
-		}
 	} catch (error) {
 		console.error("Error in handleSupportWriteMessageCallback:", error);
 	}

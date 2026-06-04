@@ -20,6 +20,15 @@ import {
 import { DAILY_TOPIC_REMINDERS } from "./reminders/daily_topic_reminders.js";
 import { ADMIN_CHAT_ID, ADMIN_THREAD_ID, LINK_TTL_MINUTES, ensureLinkTtlColumns } from "./handlers/link_lifetime.js";
 import { deliverPendingLinkRequests } from "./handlers/pending_link_requests.js";
+import { sendDailyExchangeRateRequest, tryHandleExchangeRateUpdate } from "./handlers/exchange_rate_request.js";
+import { handleTodayExchangeRatesCallback } from "./handlers/today_exchange_rates.js";
+import { handleVedServicesCallback } from "./handlers/ved_services.js";
+import { handleLeaveVedRequestCallback } from "./handlers/leave_ved_request.js";
+import { handleAccountUnfreezeServicesCallback } from "./handlers/account_unfreeze_services.js";
+import { handleLeaveAccountUnfreezeRequestCallback } from "./handlers/leave_account_unfreeze_request.js";
+import { handleOtcServicesCallback } from "./handlers/otc_services.js";
+import { handleLeaveOtcRequestCallback } from "./handlers/leave_otc_request.js";
+import { handleLeadFlowMessage } from "./handlers/lead_request_flow.js";
 
 export default {
 	async fetch(request, env) {
@@ -54,6 +63,24 @@ export default {
 			// ============================================
 			if (message && text && chatId === ADMIN_CHAT_ID) {
 				try {
+					const exchangeRateResult = await tryHandleExchangeRateUpdate({
+						token: env.TELEGRAM_BOT_TOKEN,
+						db: env.DB,
+						chatId,
+						threadId,
+						text,
+					});
+
+					if (exchangeRateResult.handled) {
+						if (exchangeRateResult.updated) {
+							console.log(
+								`[exchange-rate] Updated USDT rates: buy=${exchangeRateResult.buyRate}; sell=${exchangeRateResult.sellRate}`
+							);
+						}
+
+						return new Response("OK", { status: 200 });
+					}
+
 					let newLink = null;
 					let targetColumn = null;
 					let targetCreatedAtColumn = null;
@@ -290,7 +317,7 @@ export default {
 							await sendTelegramMessage(
 								env.TELEGRAM_BOT_TOKEN,
 								chatId,
-								"✅ Ваш отчёт получен и зафиксирован.\n🙏 <b>Спасибо, что воспользовались нашим сервисом!</b>\n\n💎 Вы помогаете нам делать криптосреду <b>прозрачнее, легальнее и безопаснее.</b>\n\n🧾 Все операции проводятся <b>официально, через ИП с лицензией</b>, с полным соблюдением законодательства РФ.\n\n🧾 Мы ценим ваше доверие и продолжаем делать криптосреду <b>прозрачной и безопасной.</b>\n\n🔄 Хотите совершить ещё одну сделку? Просто выберите действие ниже.",
+								"✅ Ваш отчёт получен и зафиксирован.\n🙏 <b>Спасибо, что воспользовались нашим сервисом!</b>\n\n💎 Вы помогаете нам делать криптосреду <b>прозрачнее, легальнее и безопаснее.</b>\n\n🧾 Все операции проводятся <b>официально, через ИП</b>, с полным соблюдением законодательства РФ.\n\n🧾 Мы ценим ваше доверие и продолжаем делать криптосреду <b>прозрачной и безопасной.</b>\n\n🔄 Хотите совершить ещё одну сделку? Просто выберите действие ниже.",
 								{
 									parse_mode: "HTML",
 									reply_markup: {
@@ -303,227 +330,20 @@ export default {
 							);
 						}
 
-						if (fsmState === "waiting_contact") {
-							const user = await env.DB
-								.prepare(`
-									SELECT username, first_name FROM users WHERE user_id = ?
-								`)
-								.bind(userId)
-								.first();
+						const leadFlowHandled = await handleLeadFlowMessage({
+							token: env.TELEGRAM_BOT_TOKEN,
+							db: env.DB,
+							kv: env.KV,
+							userId,
+							chatId,
+							text,
+							fsmState,
+						});
 
-							await env.DB
-								.prepare(`
-									INSERT INTO orders (user_id, order_type, status, created_at, updated_at)
-									VALUES (?, 'bot', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-								`)
-								.bind(userId)
-								.run();
-
-							const userDisplay = user?.username ? `@${user.username}` : user?.first_name || `User ${userId}`;
-							const adminMessage = `Пользователь ${userId} ${userDisplay} оставил заявку на бота\n\nВремя контакта: ${text}`;
-
-							const adminResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-								method: "POST",
-								headers: { "content-type": "application/json" },
-								body: JSON.stringify({
-									chat_id: "-1003764590191",
-									text: adminMessage,
-								}),
-							});
-
-							if (!adminResponse.ok) {
-								const errorText = await adminResponse.text();
-								console.error("Failed to send to admin group:", errorText);
-							}
-
-							await env.KV.delete(`fsm:${userId}`);
-
-							await sendTelegramMessage(
-								env.TELEGRAM_BOT_TOKEN,
-								chatId,
-								"✅ Спасибо! Мы получили вашу заявку. Свяжемся с вами в удобное время.",
-								{
-									reply_markup: {
-										inline_keyboard: [[{ text: "Главное меню", callback_data: "continue" }]],
-									},
-								},
-							);
+						if (leadFlowHandled) {
+							return new Response("OK", { status: 200 });
 						}
 
-						if (fsmState === "waiting_contact_legal_1") {
-							const user = await env.DB
-								.prepare(`
-									SELECT username, first_name FROM users WHERE user_id = ?
-								`)
-								.bind(userId)
-								.first();
-
-							await env.DB
-								.prepare(`
-									INSERT INTO orders (user_id, order_type, status, created_at, updated_at)
-									VALUES (?, 'legal', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-								`)
-								.bind(userId)
-								.run();
-
-							const userDisplay = user?.username ? `@${user.username}` : user?.first_name || `User ${userId}`;
-							const adminMessage = `Пользователь ${userId} ${userDisplay} оставил заявку на сумму более 1 млн \n\n ${text}`;
-
-							const adminResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-								method: "POST",
-								headers: { "content-type": "application/json" },
-								body: JSON.stringify({
-									chat_id: "-1003764590191",
-									text: adminMessage,
-								}),
-							});
-
-							if (!adminResponse.ok) {
-								const errorText = await adminResponse.text();
-								console.error("Failed to send to admin group:", errorText);
-							}
-
-							await env.KV.delete(`fsm:${userId}`);
-
-							await sendTelegramMessage(
-								env.TELEGRAM_BOT_TOKEN,
-								chatId,
-								"✅ Спасибо! Мы получили вашу заявку. Свяжемся с вами в удобное время.",
-								{
-									reply_markup: {
-										inline_keyboard: [[{ text: "Главное меню", callback_data: "continue" }]],
-									},
-								},
-							);
-						}
-
-						if (fsmState === "waiting_contact_large_1") {
-							const user = await env.DB
-								.prepare(`
-									SELECT username, first_name FROM users WHERE user_id = ?
-								`)
-								.bind(userId)
-								.first();
-
-							await env.DB
-								.prepare(`
-									INSERT INTO orders (user_id, order_type, status, created_at, updated_at)
-									VALUES (?, 'large', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-								`)
-								.bind(userId)
-								.run();
-
-							const userDisplay = user?.username ? `@${user.username}` : user?.first_name || `User ${userId}`;
-							const adminMessage = `Пользователь ${userId} ${userDisplay} оставил заявку на юр лицо \n\n ${text}`;
-
-							const adminResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-								method: "POST",
-								headers: { "content-type": "application/json" },
-								body: JSON.stringify({
-									chat_id: "-1003764590191",
-									text: adminMessage,
-								}),
-							});
-
-							if (!adminResponse.ok) {
-								const errorText = await adminResponse.text();
-								console.error("Failed to send to admin group:", errorText);
-							}
-
-							await env.KV.delete(`fsm:${userId}`);
-
-							await sendTelegramMessage(
-								env.TELEGRAM_BOT_TOKEN,
-								chatId,
-								"✅ Спасибо! Мы получили вашу заявку. Свяжемся с вами в удобное время.",
-								{
-									reply_markup: {
-										inline_keyboard: [[{ text: "Главное меню", callback_data: "continue" }]],
-									},
-								},
-							);
-						}
-
-						if (fsmState === "waiting_support_message") {
-							const user = await env.DB
-								.prepare(`
-									SELECT username, first_name FROM users WHERE user_id = ?
-								`)
-								.bind(userId)
-								.first();
-
-							const orderResult = await env.DB
-								.prepare(`
-									INSERT INTO orders (user_id, order_type, status, created_at, updated_at)
-									VALUES (?, 'help', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-								`)
-								.bind(userId)
-								.run();
-
-							const orderId = orderResult.meta?.last_row_id || "?";
-							const userDisplay = user?.username ? `@${user.username}` : user?.first_name || `User ${userId}`;
-							const feedbackTime = new Date().toISOString();
-							const supportText = text || message?.caption || "(медиафайл без подписи)";
-
-							const adminMessage = [
-								"🆘 <b>Запрос в поддержку</b>",
-								"",
-								`ID заказа: ${orderId}`,
-								`Пользователь: ${userDisplay}`,
-								`ID пользователя: ${userId}`,
-								`Время: ${feedbackTime}`,
-								"",
-								`Сообщение: ${supportText}`,
-							].join("\n");
-
-							const adminResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-								method: "POST",
-								headers: { "content-type": "application/json" },
-								body: JSON.stringify({
-									chat_id: "-1003764590191",
-									text: adminMessage,
-									parse_mode: "HTML",
-								}),
-							});
-
-							if (!adminResponse.ok) {
-								const errorText = await adminResponse.text();
-								console.error("Failed to send support message to admin group:", errorText);
-							}
-
-							// Forward media file (photo or document) to admin group if present
-							if (message.photo || message.document) {
-								const forwardResponse = await fetch(`${TELEGRAM_API}${env.TELEGRAM_BOT_TOKEN}/forwardMessage`, {
-									method: "POST",
-									headers: { "content-type": "application/json" },
-									body: JSON.stringify({
-										chat_id: "-1003764590191",
-										from_chat_id: chatId,
-										message_id: message.message_id,
-									}),
-								});
-								if (!forwardResponse.ok) {
-									const errorText = await forwardResponse.text();
-									console.error("Failed to forward media to admin group:", errorText);
-								}
-							}
-
-							await env.KV.delete(`fsm:${userId}`);
-
-							await sendTelegramMessage(
-								env.TELEGRAM_BOT_TOKEN,
-								chatId,
-								"✅ Ваше сообщение отправлено команде поддержки.\n\n<b>Мы ответим вам напрямую</b>, как только обработаем запрос.\n\nСпасибо, что пользуетесь сервисом <b>«НЕ ТОРМОЗИ С BTC»!</b> 🙏",
-								{
-									parse_mode: "HTML",
-									reply_markup: {
-										inline_keyboard: [
-											[{ text: "Главное меню", callback_data: "continue" }],
-										],
-									},
-								},
-							);
-						}
 					} catch (dbError) {
 						console.error("Database error handling contact message:", dbError);
 					}
@@ -596,6 +416,59 @@ export default {
 				});
 			}
 
+			if (callbackQuery?.data === "today_exchange_rates") {
+				await handleTodayExchangeRatesCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+					db: env.DB,
+				});
+			}
+
+			if (callbackQuery?.data === "ved_services") {
+				await handleVedServicesCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+				});
+			}
+
+			if (callbackQuery?.data === "leave_ved_request") {
+				await handleLeaveVedRequestCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+					kv: env.KV,
+				});
+			}
+
+			if (callbackQuery?.data === "account_unfreeze_services") {
+				await handleAccountUnfreezeServicesCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+				});
+			}
+
+			if (callbackQuery?.data === "leave_account_unfreeze_request") {
+				await handleLeaveAccountUnfreezeRequestCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+					kv: env.KV,
+				});
+			}
+
+			if (callbackQuery?.data === "otc_services") {
+				await handleOtcServicesCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+				});
+			}
+
+			if (callbackQuery?.data === "leave_otc_request") {
+				await handleLeaveOtcRequestCallback({
+					token: env.TELEGRAM_BOT_TOKEN,
+					callbackQuery,
+					kv: env.KV,
+				});
+			}
+
 			if (callbackQuery?.data === "leave_legal_request") {
 				await handleLeaveLegalRequestCallback({
 					token: env.TELEGRAM_BOT_TOKEN,
@@ -660,15 +533,25 @@ export default {
 		}
 	},
 	async scheduled(event, env, ctx) {
-		// if (event.cron === "30 5 * * *") {
-		// 	if (!env.TELEGRAM_BOT_TOKEN) {
-		// 		console.error("TELEGRAM_BOT_TOKEN is not set for scheduled job");
-		// 		return;
-		// 	}
+		if (event.cron === "30 5 * * *") {
+			if (!env.TELEGRAM_BOT_TOKEN) {
+				console.error("TELEGRAM_BOT_TOKEN is not set for scheduled job");
+				return;
+			}
 
-		// 	ctx.waitUntil(runDailyTopicReminders(env));
-		// 	return;
-		// }
+			ctx.waitUntil(runDailyTopicReminders(env));
+			return;
+		}
+
+		if (event.cron === "0 6 * * *") {
+			if (!env.TELEGRAM_BOT_TOKEN) {
+				console.error("TELEGRAM_BOT_TOKEN is not set for exchange-rate scheduled job");
+				return;
+			}
+
+			ctx.waitUntil(sendDailyExchangeRateRequest({ token: env.TELEGRAM_BOT_TOKEN }));
+			return;
+		}
 
 		if (event.cron === "*/5 * * * *") {
 			ctx.waitUntil(runOrderFeedbackTimerCheck(env));
@@ -683,9 +566,9 @@ function getStartMessageHtml() {
 		"Здесь вы можете <b>быстро, безопасно, дешевле и полностью официально купить USDT</b> через проверенный канал.",
 		"",
 		"✅ <b>Почему это надёжно?</b>",
-		"Все сделки проходят <b>только на криптобирже Bybit</b> - через P2P-систему. Никаких сторонних платформ и «серых» переводов.",
+		"Все сделки проходят <b>только на криптобирже Bybit</b> - через проверенную P2P-систему. Никаких сторонних платформ и «серых» переводов.",
 		"",
-		"Наш операционный партнёр - <b>ИП Золотая А.В (ИНН 232905828857)</b> - работает официально как <b>ИП с лицензией</b> на обмен и продажу криптовалют.",
+		"Наш операционный партнёр - <b>ИП Золотая А.В (ИНН 232905828857)</b> - работает официально, с нужными ОКВЭД, позволяющими осуществлять операции с криптовалютойю.",
 		"",
 		"Никаких скрытых комиссий. Никаких блокировок от банков. Вы получаете ровно столько USDT, сколько оплатили.",
 		"",
@@ -695,6 +578,8 @@ function getStartMessageHtml() {
 		"Просто выберите действие ниже 👇",
 		"",
 		'✅ Нажимая «Продолжить», вы принимаете условия <a href="https://netormozi-btc.ru/bot-soglasheniye">Пользовательского соглашения</a> и <a href="https://netormozi-btc.ru/bot-politika">Политики конфиденциальности</a>.',
+		"",
+		'📞 <b>Нужна консультация или поддержка?</b> Обратитесь в техническую поддержку напрямую, напишите в аккаунт <b>@netormozi_s_BTC. Ответим в течение 1 дня. Время работы с 9:00–23:00 МСК.</b>',
 	].join("\n");
 }
 

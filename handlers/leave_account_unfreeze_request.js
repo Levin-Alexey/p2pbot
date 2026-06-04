@@ -1,6 +1,6 @@
 import { startLeadRequestFlow } from "./lead_request_flow.js";
 
-export async function handleLeaveCompanyRequestCallback({ token, callbackQuery, kv }) {
+export async function handleLeaveAccountUnfreezeRequestCallback({ token, callbackQuery, kv }) {
 	const callbackQueryId = callbackQuery?.id;
 	const chatId = callbackQuery?.message?.chat?.id;
 	const userId = callbackQuery?.from?.id;
@@ -16,9 +16,9 @@ export async function handleLeaveCompanyRequestCallback({ token, callbackQuery, 
 			chatId,
 			userId,
 			kv,
-			state: "waiting_contact_large_1",
+			state: "waiting_contact_unfreeze_1",
 		});
 	} catch (error) {
-		console.error("Error in handleLeaveCompanyRequestCallback:", error);
+		console.error("Error in handleLeaveAccountUnfreezeRequestCallback:", error);
 	}
 }
