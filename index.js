@@ -6,7 +6,6 @@ import { handleBuyUsdtCallback } from "./handlers/buy_usdt.js";
 import { handleBuyUsdtLinkCallback } from "./handlers/buy_usdt_link.js";
 import { handleSellUsdtCallback } from "./handlers/sell_usdt.js";
 import { handleSellUsdtLinkCallback } from "./handlers/sell_usdt_link.js";
-import { handleUsdtMaintenanceCallback } from "./handlers/usdt_maintenance.js";
 import { handleSupportCallback, handleSupportWriteMessageCallback } from "./handlers/support.js";
 import { handleSendMessageCallback } from "./handlers/send_message.js";
 import { handleLargeAmountRequestCallback } from "./handlers/large_amount_request.js";
@@ -374,7 +373,7 @@ export default {
 			}
 
 			if (callbackQuery?.data === "buy_usdt") {
-				await handleUsdtMaintenanceCallback({
+				await handleBuyUsdtCallback({
 					token: env.TELEGRAM_BOT_TOKEN,
 					callbackQuery,
 				});
@@ -389,7 +388,7 @@ export default {
 			}
 
 			if (callbackQuery?.data === "sell_usdt") {
-				await handleUsdtMaintenanceCallback({
+				await handleSellUsdtCallback({
 					token: env.TELEGRAM_BOT_TOKEN,
 					callbackQuery,
 				});
